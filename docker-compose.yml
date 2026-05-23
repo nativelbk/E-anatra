@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: e-anatra-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-eanatra}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-eanatra_secret}
+      POSTGRES_DB: ${DB_NAME:-eanatra_db}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: e-anatra-api
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-eanatra}:${DB_PASSWORD:-eanatra_secret}@postgres:5432/${DB_NAME:-eanatra_db}
+      JWT_SECRET: ${JWT_SECRET:-super_secret_jwt}
+      AI_PROVIDER: ${AI_PROVIDER:-claude}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      PORT: 3001
+    ports:
+      - '3001:3001'
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: e-anatra-web
+    environment:
+      VITE_API_URL: http://localhost:3001
+    ports:
+      - '5173:5173'
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

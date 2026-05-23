@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx ts-node *)",
+      "Bash(npx prisma *)",
+      "PowerShell(Head-Object -n 20 2>$null)",
+      "PowerShell(Get-ChildItem \"c:\\\\e-Anatra2.0\\\\city-walk\\\\public\" | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem \"c:\\\\e-Anatra2.0\\\\city-walk\\\\public\\\\models\" -Recurse | Measure-Object | Select-Object Count; Get-ChildItem \"c:\\\\e-Anatra2.0\\\\city-walk\\\\public\\\\models\" | ForEach-Object { $_.Name })",
+      "PowerShell(Set-Location \"c:\\\\e-Anatra2.0\\\\frontend\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"CityWalk|Sage|sage|App\\\\.tsx|Sidebar\" })",
+      "PowerShell(Set-Location \"c:\\\\e-Anatra2.0\\\\backend\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"sage|Sage\" })",
+      "PowerShell(Set-Location \"c:\\\\e-Anatra2.0\\\\frontend\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"CityWalk|Sage|sage\" })"
+    ]
+  }
+}
