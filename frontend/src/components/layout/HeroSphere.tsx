@@ -1,12 +1,5 @@
-// HeroSphere.tsx
-// Composant 3D isolé — sphere.glb
-// Place le fichier dans : public/models/sphere.glb
-//
-// Dépendances à installer :
-//   npm install @react-three/fiber @react-three/drei three
-//   npm install -D @types/three
-
-import { useRef, Suspense } from "react";
+// HeroSphere.tsx — avec suivi de la souris
+import { useRef, Suspense, useState, useCallback } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import {
   useGLTF,
@@ -20,18 +13,21 @@ import {
 import { useSpring, animated } from "@react-spring/three";
 import * as THREE from "three";
 
-/* ── Preload ── */
 useGLTF.preload("/models/360_sphere_robot_no_glass.glb");
 
-/* ─────────────────────────────────────────────────
-   SphereModel — charge le .glb et applique
-   un matériau holographique cyan sur tous les meshes
-───────────────────────────────────────────────── */
-function SphereModel() {
-  const { scene } = useGLTF("/models/360_sphere_robot_no_glass.glb");
-  const groupRef = useRef<THREE.Group>(null);
+/* ── Types pour le suivi souris ── */
+interface MousePos {
+  x: number; // -1 → +1 (normalisé)
+  y: number; // -1 → +1
+}
 
-  // Remplace tous les matériaux du modèle par un look holographique
+/* ─────────────────────────────────────────────────
+   SphereModel — suit la souris via springs
+───────────────────────────────────────────────── */
+function SphereModel({ mouse }: { mouse: MousePos }) {
+  const { scene } = useGLTF("/models/360_sphere_robot_no_glass.glb");
+  const autoRotRef = useRef<THREE.Group>(null);
+
   scene.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
       const mesh = child as THREE.Mesh;
@@ -40,46 +36,52 @@ function SphereModel() {
     }
   });
 
-  // Rotation lente continue
+  // Rotation automatique sur le sous-groupe interne
   useFrame((state) => {
-    if (!groupRef.current) return;
-    groupRef.current.rotation.y = state.clock.elapsedTime * 0.18;
-    groupRef.current.rotation.x =
-      Math.sin(state.clock.elapsedTime * 0.3) * 0.08;
+    if (!autoRotRef.current) return;
+    autoRotRef.current.rotation.y = state.clock.elapsedTime * 0.18;
+  });
+
+  // Spring sur la rotation du groupe externe (suivi souris)
+  const { rotX, rotY } = useSpring({
+    rotX: -mouse.y * 0.45, // inclinaison verticale
+    rotY: mouse.x * 0.55, // inclinaison horizontale
+    config: { mass: 1, tension: 120, friction: 28 },
   });
 
   return (
-    <group ref={groupRef} dispose={null}>
-      {/* Le modèle GLB */}
-      <primitive object={scene} scale={3.8} />
+    // Groupe externe animé — réagit à la souris
+    <animated.group rotation-x={rotX} rotation-y={rotY}>
+      {/* Groupe interne — rotation automatique continue */}
+      <group ref={autoRotRef} dispose={null}>
+        <primitive object={scene} scale={3.8} />
 
-      {/* Overlay : couche holographique cyan par-dessus */}
-      <mesh scale={1.52}>
-        <sphereGeometry args={[1, 64, 64]} />
-        <MeshTransmissionMaterial
-          backside
-          samples={8}
-          thickness={0.4}
-          roughness={0.02}
-          transmission={0.95}
-          ior={1.5}
-          chromaticAberration={0.06}
-          anisotropy={0.3}
-          distortion={0.2}
-          distortionScale={0.3}
-          temporalDistortion={0.1}
-          color="#22d3ee" /* cyan-400 */
-          attenuationColor="#0e7490"
-          attenuationDistance={0.8}
-        />
-      </mesh>
-    </group>
+        {/* Overlay holographique cyan */}
+        <mesh scale={1.52}>
+          <sphereGeometry args={[1, 64, 64]} />
+          <MeshTransmissionMaterial
+            backside
+            samples={8}
+            thickness={0.4}
+            roughness={0.02}
+            transmission={0.95}
+            ior={1.5}
+            chromaticAberration={0.06}
+            anisotropy={0.3}
+            distortion={0.2}
+            distortionScale={0.3}
+            temporalDistortion={0.1}
+            color="#22d3ee"
+            attenuationColor="#0e7490"
+            attenuationDistance={0.8}
+          />
+        </mesh>
+      </group>
+    </animated.group>
   );
 }
 
-/* ─────────────────────────────────────────────────
-   Lumières holographiques pulsantes
-───────────────────────────────────────────────── */
+/* ── HoloLights (inchangé) ── */
 function HoloLights() {
   const light1 = useRef<THREE.PointLight>(null);
   const light2 = useRef<THREE.PointLight>(null);
@@ -87,7 +89,6 @@ function HoloLights() {
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
-
     if (light1.current) {
       light1.current.position.x = Math.sin(t * 0.7) * 3;
       light1.current.position.y = Math.cos(t * 0.5) * 2;
@@ -106,7 +107,6 @@ function HoloLights() {
 
   return (
     <>
-      {/* Cyan principal */}
       <pointLight
         ref={light1}
         color="#22d3ee"
@@ -114,7 +114,6 @@ function HoloLights() {
         distance={8}
         position={[2, 1, 2]}
       />
-      {/* Sky bleu */}
       <pointLight
         ref={light2}
         color="#38bdf8"
@@ -122,7 +121,6 @@ function HoloLights() {
         distance={6}
         position={[-2, -1, 1]}
       />
-      {/* Teal accent */}
       <pointLight
         ref={light3}
         color="#2dd4bf"
@@ -130,9 +128,7 @@ function HoloLights() {
         distance={5}
         position={[0, 2, -2]}
       />
-      {/* Lumière ambiante froide */}
       <ambientLight color="#0c4a6e" intensity={0.4} />
-      {/* Rim light blanc froid */}
       <directionalLight
         color="#e0f2fe"
         intensity={0.6}
@@ -142,9 +138,7 @@ function HoloLights() {
   );
 }
 
-/* ─────────────────────────────────────────────────
-   Anneaux orbitaux animés (purement R3F, pas de GLB)
-───────────────────────────────────────────────── */
+/* ── OrbitalRings (inchangé) ── */
 function OrbitalRings() {
   const ring1 = useRef<THREE.Mesh>(null);
   const ring2 = useRef<THREE.Mesh>(null);
@@ -178,17 +172,14 @@ function OrbitalRings() {
 
   return (
     <group>
-      {/* Anneau 1 — cyan */}
       <mesh ref={ring1}>
         <torusGeometry args={[1.8, 0.006, 2, 120]} />
         {ringMat("#22d3ee", 0.5)}
       </mesh>
-      {/* Anneau 2 — sky */}
       <mesh ref={ring2}>
         <torusGeometry args={[2.2, 0.004, 2, 120]} />
         {ringMat("#38bdf8", 0.35)}
       </mesh>
-      {/* Anneau 3 — teal */}
       <mesh ref={ring3}>
         <torusGeometry args={[2.3, 0.003, 2, 120]} />
         {ringMat("#2dd4bf", 0.25)}
@@ -197,9 +188,6 @@ function OrbitalRings() {
   );
 }
 
-/* ─────────────────────────────────────────────────
-   Fallback affiché pendant le chargement du GLB
-───────────────────────────────────────────────── */
 function LoadingFallback() {
   const mesh = useRef<THREE.Mesh>(null);
   useFrame((state) => {
@@ -219,18 +207,36 @@ function LoadingFallback() {
 }
 
 /* ─────────────────────────────────────────────────
-   HeroSphere — composant principal exporté
-   Usage dans LandingPage :
-     <HeroSphere />
-   (remplace <HolographicOrb /> dans la section hero)
+   HeroSphere — composant principal
 ───────────────────────────────────────────────── */
 export default function HeroSphere() {
+  const [mouse, setMouse] = useState<MousePos>({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Normalise la position souris entre -1 et +1 dans le conteneur
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setMouse({
+      x: ((e.clientX - rect.left) / rect.width - 0.5) * 2,
+      y: ((e.clientY - rect.top) / rect.height - 0.5) * 2,
+    });
+  }, []);
+
+  // Recentre doucement quand la souris quitte
+  const handleMouseLeave = useCallback(() => {
+    setMouse({ x: 0, y: 0 });
+  }, []);
+
   return (
     <div
+      ref={containerRef}
       className="relative w-full"
       style={{ height: "520px", cursor: "grab" }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
     >
-      {/* Halo de glow derrière le canvas */}
+      {/* Halo de glow */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -250,13 +256,9 @@ export default function HeroSphere() {
         style={{ background: "transparent" }}
         dpr={[1, 2]}
       >
-        {/* Environnement HDRI pour les reflets */}
         <Environment preset="city" />
-
-        {/* Lumières */}
         <HoloLights />
 
-        {/* Modèle flottant */}
         <Float
           speed={1.8}
           rotationIntensity={0.4}
@@ -264,14 +266,13 @@ export default function HeroSphere() {
           floatingRange={[-0.15, 0.15]}
         >
           <Suspense fallback={<LoadingFallback />}>
-            <SphereModel />
+            {/* ← On passe mouse au modèle */}
+            <SphereModel mouse={mouse} />
           </Suspense>
         </Float>
 
-        {/* Anneaux orbitaux */}
         <OrbitalRings />
 
-        {/* Particules brillantes */}
         <DreiSparkles
           count={60}
           scale={1}
@@ -281,7 +282,6 @@ export default function HeroSphere() {
           color="#22d3ee"
         />
 
-        {/* Orbit controls — drag limité pour ne pas perturber le scroll */}
         <OrbitControls
           enableZoom={false}
           enablePan={false}
